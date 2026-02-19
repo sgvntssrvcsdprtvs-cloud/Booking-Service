@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Reserva la pista de pádel</title>
+
+<style>
+body { font-family: Impact, sans-serif; background:#f2f2f2; margin:0; }
+header { background:#2ecc71; color:white; padding:15px; text-align:center; }
+.container { max-width:800px; margin:auto; padding:20px; }
+form { background:white; padding:15px; border-radius:6px; }
+label { display:block; margin-top:10px; }
+input, select, button { width:100%; padding:8px; margin-top:5px; }
+button { background:#27ae60; color:white; border:none; margin-top:15px; cursor:pointer; }
+table { width:100%; border-collapse:collapse; margin-top:20px; }
+th,td { border:1px solid #ccc; padding:8px; text-align:center; }
+th { background:#27ae60; color:white; }
+
+.logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+.logo { max-height: 70px; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logos">
+    <img src="logo1.png" class="logo">
+    <img src="logo2.jpeg" class="logo">
+  </div>
+  <h1>Reservas Pista de Pádel</h1>
+</header>
+
+<div class="container">
+
+<form id="reservaForm">
+  <label>Nombre:</label>
+  <input type="text" id="nombre" required>
+
+  <label>Email:</label>
+  <input type="email" id="email" required>
+
+  <label>Fecha:</label>
+  <input type="date" id="fecha" required>
+
+  <label>Horario:</label>
+  <select id="hora" required></select>
+
+  <button type="submit">Reservar</button>
+</form>
+
+<h2>Reservas realizadas</h2>
+<table id="tablaReservas">
+<tr><th>Nombre</th><th>Fecha</th><th>Hora</th></tr>
+</table>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+// CONFIG FIREBASE
+const firebaseConfig = {
+   apiKey: "905462199088",
+  authDomain: "905462199088.firebaseapp.com",
+  projectId: "reserva-pista-de-padel",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Horarios
+const horariosSemana = {
+  1: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"],
+  2: ["17:00 - 18:30", "18:30 - 20:00"],
+  3: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"],
+  4: ["17:00 - 18:30", "18:30 - 20:00"],
+  5: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"]
+};
+
+const nombreInput = document.getElementById("nombre");
+const emailInput = document.getElementById("email");
+const fechaInput = document.getElementById("fecha");
+const horaSelect = document.getElementById("hora");
+const tabla = document.getElementById("tablaReservas");
+const form = document.getElementById("reservaForm");
+
+fechaInput.addEventListener("change", cargarHoras);
+form.addEventListener("submit", guardarReserva);
+
+// Formato fecha
+function formatearFecha(fechaStr){
+  const fecha = new Date(fechaStr);
+  return fecha.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+}
+
+// Cargar horas
+async function cargarHoras(){
+  horaSelect.innerHTML = "";
+
+  const fecha = new Date(fechaInput.value);
+  const diaSemana = fecha.getDay();
+
+  if(!horariosSemana[diaSemana]){
+    alert("No hay reservas ese día");
+    return;
+  }
+
+  const reservasSnap = await getDocs(collection(db,"reservas"));
+  const reservas = reservasSnap.docs.map(doc => doc.data());
+
+  horariosSemana[diaSemana].forEach(h=>{
+    const opt = document.createElement("option");
+    opt.textContent = h;
+
+    if(reservas.some(r => r.fecha === fechaInput.value && r.hora === h)){
+      opt.disabled = true;
+      opt.textContent += " (Reservado)";
+    }
+
+    horaSelect.appendChild(opt);
+  });
+}
+
+// Guardar reserva y enviar correo
+async function guardarReserva(e){
+  e.preventDefault();
+
+  const reservasSnap = await getDocs(collection(db,"reservas"));
+
+  const existe = reservasSnap.docs.some(doc=>{
+    const r = doc.data();
+    return r.fecha === fechaInput.value && r.hora === horaSelect.value;
+  });
+
+  if(existe){
+    alert("Ese horario ya está reservado. Por favor, elige otro.");
+    return;
+  }
+
+  try {
+    // 1. Guardar en Firebase
+    await addDoc(collection(db,"reservas"),{
+      nombre: nombreInput.value,
+      email: emailInput.value,
+      fecha: fechaInput.value,
+      hora: horaSelect.value
+    });
+
+    // 2. Enviar correo usando Formspree
+    // IMPORTANTE: Sustituye "TU_ID_DE_FORMSPREE" por el identificador de tu formulario
+    const formspreeEndpoint = "https://formspree.io/f/xgollobw"; 
+    
+    await fetch(formspreeEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        Nombre: nombreInput.value,
+        Email: emailInput.value,
+        Fecha: formatearFecha(fechaInput.value), 
+        Hora: horaSelect.value,
+        _replyto: emailInput.value 
+      })
+    });
+
+    // 3. Confirmar al usuario y resetear la interfaz
+    alert("¡Reserva confirmada! Recibirás un correo con los detalles.");
+    form.reset();
+    horaSelect.innerHTML = ""; 
+    cargarTabla();
+
+  } catch (error) {
+    console.error("Error en el proceso de reserva:", error);
+    alert("Hubo un error al procesar tu reserva. Por favor, inténtalo de nuevo.");
+  }
+}
+
+// Cargar tabla
+async function cargarTabla(){
+  const reservasSnap = await getDocs(collection(db,"reservas"));
+  tabla.innerHTML = "<tr><th>Nombre</th><th>Fecha</th><th>Hora</th></tr>";
+
+  reservasSnap.forEach(doc=>{
+    const data = doc.data();
+    const fila = document.createElement("tr");
+
+    fila.innerHTML = `
+      <td>${data.nombre}</td>
+      <td>${formatearFecha(data.fecha)}</td>
+      <td>${data.hora}</td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+}
+
+// Inicial
+cargarTabla();
+</script>
+
+</body>
+</html>
