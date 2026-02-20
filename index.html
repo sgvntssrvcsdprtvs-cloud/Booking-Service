@@ -153,34 +153,51 @@ async function cargarHoras(){
 }
 
 // Guardar reserva y notificar vía EmailJS
-async function guardarReserva(e){
-  e.preventDefault();
-  const btn = document.getElementById("btnReservar");
-  btn.disabled = true;
+async function cargarHoras(){
+  // 1. Limpieza inmediata y estado de carga
+  horaSelect.innerHTML = '<option value="">Comprobando disponibilidad...</option>';
+
+  if (!fechaInput.value) {
+    horaSelect.innerHTML = '<option value="">Selecciona una fecha primero</option>';
+    return;
+  }
+
+  // 2. Corregir desfase de zona horaria (evita el error de "día anterior")
+  const partesFecha = fechaInput.value.split('-'); 
+  const fechaObj = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
+  const diaSemana = fechaObj.getDay(); // 0=Domingo, 1=Lunes...
+
+  // 3. Verificar si el club abre ese día
+  if (!horariosSemana[diaSemana]) {
+    horaSelect.innerHTML = '<option value="">No hay pista disponible para este día (Club Cerrado)</option>';
+    return;
+  }
 
   try {
-    // 1. Verificar disponibilidad final
-    const reservasSnap = await getDocs(collection(db,"reservas"));
-    const existe = reservasSnap.docs.some(doc => {
-      const r = doc.data();
-      return r.fecha === fechaInput.value && r.hora === horaSelect.value;
+    // 4. Consultar Firebase para ver qué horas están ocupadas
+    const reservasSnap = await getDocs(collection(db, "reservas"));
+    const reservasOcupadas = reservasSnap.docs.map(doc => doc.data());
+
+    // 5. Rellenar el menú
+    horaSelect.innerHTML = '<option value="">Selecciona una hora</option>';
+
+    horariosSemana[diaSemana].forEach(h => {
+      const estaOcupada = reservasOcupadas.some(r => r.fecha === fechaInput.value && r.hora === h);
+      const opt = document.createElement("option");
+      opt.value = h;
+      opt.textContent = estaOcupada ? `${h} (Ocupado)` : h;
+      
+      if (estaOcupada) {
+        opt.disabled = true;
+      }
+      horaSelect.appendChild(opt);
     });
 
-    if(existe){
-      alert("Lo sentimos, este horario acaba de ser reservado.");
-      cargarHoras();
-      btn.disabled = false;
-      return;
-    }
-
-    // 2. Guardar en Firebase
-    await addDoc(collection(db,"reservas"), {
-      nombre: nombreInput.value,
-      email: emailInput.value,
-      fecha: fechaInput.value,
-      hora: horaSelect.value,
-      creado: new Date()
-    });
+  } catch (error) {
+    console.error("Error al obtener disponibilidad:", error);
+    horaSelect.innerHTML = '<option value="">Error al cargar horarios</option>';
+  }
+}
 
     // 3. Enviar correos con EmailJS
     // REEMPLAZA ESTOS DATOS CON LOS TUYOS
