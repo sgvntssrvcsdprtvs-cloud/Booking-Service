@@ -163,7 +163,7 @@ async function guardarReserva(e){
     const SERVICE_ID = "service_ai3otnx";
     const TEMPLATE_ID = "template_zbmh83z";
 
-    await emailjs.send(service_ai3otnx, template_zbmh83z, {
+    await emailjs.send("service_ai3otnx", "template_zbmh83z", {
       nombre: nombreInput.value,
       email: emailInput.value,
       fecha: formatearFecha(fechaInput.value),
