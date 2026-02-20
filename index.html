@@ -7,7 +7,7 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script type="text/javascript">
    (function(){
-      // SUSTITUYE AQUÍ TU PUBLIC KEY
+      // 1. CAMBIA ESTO: Pon tu PUBLIC KEY de EmailJS (Sección Account > API Keys)
       emailjs.init("1gXtw-8vXGl4rBmgG");
    })();
 </script>
@@ -16,21 +16,16 @@
 body { font-family: sans-serif; background:#f2f2f2; margin:0; }
 header { background:#2ecc71; color:white; padding:15px; text-align:center; }
 .container { max-width:800px; margin:auto; padding:20px; }
-form { background:white; padding:15px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+form { background:white; padding:15px; border-radius:6px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 label { display:block; margin-top:10px; font-weight: bold; }
-input, select, button { width:100%; padding:8px; margin-top:5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
-button { background:#27ae60; color:white; border:none; margin-top:15px; cursor:pointer; font-size: 16px; }
+input, select, button { width:100%; padding:10px; margin-top:5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+button { background:#27ae60; color:white; border:none; margin-top:15px; cursor:pointer; font-weight: bold; }
 button:hover { background: #219150; }
+button:disabled { background: #95a5a6; }
 table { width:100%; border-collapse:collapse; margin-top:20px; background: white; }
-th,td { border:1px solid #ccc; padding:8px; text-align:center; }
+th,td { border:1px solid #ccc; padding:10px; text-align:center; }
 th { background:#27ae60; color:white; }
-
-.logos {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-}
+.logos { display: flex; justify-content: center; align-items: center; gap: 20px; }
 .logo { max-height: 70px; }
 </style>
 </head>
@@ -46,9 +41,8 @@ th { background:#27ae60; color:white; }
 </header>
 
 <div class="container">
-
 <form id="reservaForm">
-  <label>Nombre:</label>
+  <label>Nombre Completo:</label>
   <input type="text" id="nombre" required>
 
   <label>Email:</label>
@@ -66,188 +60,143 @@ th { background:#27ae60; color:white; }
 </form>
 
 <h2>Reservas realizadas</h2>
-<table id="tablaReservas">
+<table>
   <thead>
     <tr><th>Nombre</th><th>Fecha</th><th>Hora</th></tr>
   </thead>
-  <tbody id="cuerpoTabla"></tbody>
+  <tbody id="tablaReservas"></tbody>
 </table>
-
 </div>
 
 <script type="module">
+// IMPORTACIÓN DE FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-// CONFIG FIREBASE
+// 2. CONFIGURACIÓN FIREBASE (YA ESTÁ LISTA)
 const firebaseConfig = {
   apiKey: "905462199088",
-  authDomain: "1:905462199088:web:ee3458a2d1081b459a8ef5",
+  authDomain: "reserva-pista-de-padel.firebaseapp.com",
   projectId: "reserva-pista-de-padel",
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Horarios configurados
+// HORARIOS DISPONIBLES
 const horariosSemana = {
-  1: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"],
-  2: ["17:00 - 18:30", "18:30 - 20:00"],
-  3: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"],
-  4: ["17:00 - 18:30", "18:30 - 20:00"],
-  5: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"]
+  1: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"], // Lun
+  2: ["17:00 - 18:30", "18:30 - 20:00"],                               // Mar
+  3: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"], // Mie
+  4: ["17:00 - 18:30", "18:30 - 20:00"],                               // Jue
+  5: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"]  // Vie
 };
 
 const nombreInput = document.getElementById("nombre");
 const emailInput = document.getElementById("email");
 const fechaInput = document.getElementById("fecha");
 const horaSelect = document.getElementById("hora");
-const tablaCuerpo = document.getElementById("cuerpoTabla");
+const tabla = document.getElementById("tablaReservas");
 const form = document.getElementById("reservaForm");
 
 fechaInput.addEventListener("change", cargarHoras);
 form.addEventListener("submit", guardarReserva);
 
-// Formato fecha legible
 function formatearFecha(fechaStr){
-  const [year, month, day] = fechaStr.split("-");
-  const fecha = new Date(year, month - 1, day);
-  return fecha.toLocaleDateString("es-ES", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric"
-  });
+  const [y, m, d] = fechaStr.split("-");
+  const f = new Date(y, m - 1, d);
+  return f.toLocaleDateString("es-ES", { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// Cargar horas disponibles evitando overbooking
+// FUNCIÓN PARA CARGAR HORARIOS DESDE FIREBASE
 async function cargarHoras(){
-  horaSelect.innerHTML = '<option value="">Cargando horarios...</option>';
-
-  const fechaVal = fechaInput.value;
-  const fechaObj = new Date(fechaVal);
-  const diaSemana = fechaObj.getDay();
+  if(!fechaInput.value) return;
+  horaSelect.innerHTML = '<option value="">Comprobando disponibilidad...</option>';
+  
+  const [year, month, day] = fechaInput.value.split("-");
+  const fechaSeleccionada = new Date(year, month - 1, day);
+  const diaSemana = fechaSeleccionada.getDay(); 
 
   if(!horariosSemana[diaSemana]){
-    horaSelect.innerHTML = '<option value="">Sin pista este día</option>';
-    return;
-  }
-
-  const reservasSnap = await getDocs(collection(db,"reservas"));
-  const reservas = reservasSnap.docs.map(doc => doc.data());
-
-  horaSelect.innerHTML = '<option value="">Selecciona una hora</option>';
-
-  horariosSemana[diaSemana].forEach(h => {
-    const opt = document.createElement("option");
-    opt.value = h;
-    opt.textContent = h;
-
-    if(reservas.some(r => r.fecha === fechaVal && r.hora === h)){
-      opt.disabled = true;
-      opt.textContent += " (Ocupado)";
-    }
-
-    horaSelect.appendChild(opt);
-  });
-}
-
-// Guardar reserva y notificar vía EmailJS
-async function cargarHoras(){
-  // 1. Limpieza inmediata y estado de carga
-  horaSelect.innerHTML = '<option value="">Comprobando disponibilidad...</option>';
-
-  if (!fechaInput.value) {
-    horaSelect.innerHTML = '<option value="">Selecciona una fecha primero</option>';
-    return;
-  }
-
-  // 2. Corregir desfase de zona horaria (evita el error de "día anterior")
-  const partesFecha = fechaInput.value.split('-'); 
-  const fechaObj = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
-  const diaSemana = fechaObj.getDay(); // 0=Domingo, 1=Lunes...
-
-  // 3. Verificar si el club abre ese día
-  if (!horariosSemana[diaSemana]) {
-    horaSelect.innerHTML = '<option value="">No hay pista disponible para este día (Club Cerrado)</option>';
+    horaSelect.innerHTML = '<option value="">Cerrado (Solo Lunes a Viernes)</option>';
     return;
   }
 
   try {
-    // 4. Consultar Firebase para ver qué horas están ocupadas
-    const reservasSnap = await getDocs(collection(db, "reservas"));
-    const reservasOcupadas = reservasSnap.docs.map(doc => doc.data());
+    const snap = await getDocs(collection(db, "reservas"));
+    const ocupados = snap.docs.map(doc => doc.data());
 
-    // 5. Rellenar el menú
     horaSelect.innerHTML = '<option value="">Selecciona una hora</option>';
-
     horariosSemana[diaSemana].forEach(h => {
-      const estaOcupada = reservasOcupadas.some(r => r.fecha === fechaInput.value && r.hora === h);
+      const estaOcupado = ocupados.some(r => r.fecha === fechaInput.value && r.hora === h);
       const opt = document.createElement("option");
       opt.value = h;
-      opt.textContent = estaOcupada ? `${h} (Ocupado)` : h;
-      
-      if (estaOcupada) {
-        opt.disabled = true;
-      }
+      opt.textContent = estaOcupado ? h + " (RESERVADO)" : h;
+      if(estaOcupado) opt.disabled = true;
       horaSelect.appendChild(opt);
     });
-
   } catch (error) {
-    console.error("Error al obtener disponibilidad:", error);
-    horaSelect.innerHTML = '<option value="">Error al cargar horarios</option>';
+    console.error("Error:", error);
+    horaSelect.innerHTML = '<option value="">Error de conexión</option>';
   }
 }
 
-    // 3. Enviar correos con EmailJS
-    // REEMPLAZA ESTOS DATOS CON LOS TUYOS
-    const SERVICE_ID = "service_ai3otnx";
-    const TEMPLATE_ID = "service_ai3otnx";
+// FUNCIÓN PARA GUARDAR Y ENVIAR EMAIL
+async function guardarReserva(e){
+  e.preventDefault();
+  const btn = document.getElementById("btnReservar");
+  btn.disabled = true;
+  btn.textContent = "Procesando...";
 
-    const emailParams = {
+  try {
+    // 1. Guardar en Firestore
+    await addDoc(collection(db, "reservas"), {
+      nombre: nombreInput.value,
+      email: emailInput.value,
+      fecha: fechaInput.value,
+      hora: horaSelect.value,
+      timestamp: new Date()
+    });
+
+    // 2. Enviar con EmailJS
+    // CAMBIA ESTOS 2 VALORES POR LOS TUYOS:
+    const SERVICE_ID = "service_ai3otnx";
+    const TEMPLATE_ID = "template_zbmh83z";
+
+    await emailjs.send(service_ai3otnx, template_zbmh83z, {
       nombre: nombreInput.value,
       email: emailInput.value,
       fecha: formatearFecha(fechaInput.value),
       hora: horaSelect.value
-    };
+    });
 
-    await emailjs.send(service_ai3otnx, service_ai3otnx, {{nombre}},{{email}},{{fecha},{{hora}}});
-
-    // 4. Éxito
-    alert("✅ ¡Reserva confirmada! Recibirás un correo de confirmación.");
+    alert("✅ ¡Reserva realizada! Se ha enviado la notificación.");
     form.reset();
     horaSelect.innerHTML = '<option value="">Selecciona una fecha primero</option>';
     cargarTabla();
 
-  } catch (error) {
-    console.error("Error:", error);
-    alert("Hubo un problema al procesar la reserva.");
+  } catch (err) {
+    console.error("Error crítico:", err);
+    alert("Hubo un error. Revisa la consola (F12) para más detalles.");
   } finally {
     btn.disabled = false;
+    btn.textContent = "Confirmar Reserva";
   }
 }
 
-// Cargar tabla de reservas actualizada
 async function cargarTabla(){
-  const q = query(collection(db, "reservas"), orderBy("fecha", "asc"));
-  const reservasSnap = await getDocs(q);
-  tablaCuerpo.innerHTML = "";
-
-  reservasSnap.forEach(doc => {
-    const data = doc.data();
-    const fila = document.createElement("tr");
-    fila.innerHTML = `
-      <td>${data.nombre}</td>
-      <td>${formatearFecha(data.fecha)}</td>
-      <td>${data.hora}</td>
-    `;
-    tablaCuerpo.appendChild(fila);
-  });
+  try {
+    const q = query(collection(db, "reservas"), orderBy("fecha", "asc"));
+    const snap = await getDocs(q);
+    tabla.innerHTML = "";
+    snap.forEach(doc => {
+      const d = doc.data();
+      tabla.innerHTML += `<tr><td>${d.nombre}</td><td>${formatearFecha(d.fecha)}</td><td>${d.hora}</td></tr>`;
+    });
+  } catch (e) { console.error(e); }
 }
 
-// Inicializar tabla
 cargarTabla();
 </script>
-
 </body>
 </html>
