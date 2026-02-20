@@ -132,24 +132,25 @@ async function cargarHoras(){
     horaSelect.appendChild(opt);
   });
 }
-
+// Guardar reserva y enviar correo
 async function guardarReserva(e){
   e.preventDefault();
 
-  // 1. Verificar si ya existe (Evitar Overbooking)
   const reservasSnap = await getDocs(collection(db,"reservas"));
-  const existe = reservasSnap.docs.some(doc => {
+
+  // Verificar overbooking
+  const existe = reservasSnap.docs.some(doc=>{
     const r = doc.data();
     return r.fecha === fechaInput.value && r.hora === horaSelect.value;
   });
 
   if(existe){
-    alert("❌ Este horario ya está reservado.");
+    alert("Ese horario ya está reservado. Por favor, elige otro.");
     return;
   }
 
   try {
-    // 2. Guardar en Firebase (Prioridad)
+    // 1. Guardar en Firebase
     await addDoc(collection(db,"reservas"),{
       nombre: nombreInput.value,
       email: emailInput.value,
@@ -157,35 +158,37 @@ async function guardarReserva(e){
       hora: horaSelect.value
     });
 
-    // 3. Notificación emergente inmediata para el usuario
-    alert("✅ ¡Reserva realizada con éxito! Enviando confirmación...");
-
-    // 4. Enviar a Formspree (Notificación por Email)
-    const formspreeEndpoint = "https://formspree.io/f/TU_ID_DE_FORMSPREE"; // <--- PON TU ID AQUÍ
+    // 2. Enviar correo usando Formspree
+    // IMPORTANTE: Sustituye "TU_ID_DE_FORMSPREE" por el ID real de tu formulario
+    const formspreeEndpoint = "https://formspree.io/f/TU_ID_DE_FORMSPREE"; 
     
-    fetch(formspreeEndpoint, {
+    await fetch(formspreeEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
         Nombre: nombreInput.value,
         Email: emailInput.value,
-        Fecha: formatearFecha(fechaInput.value), 
+        Fecha: formatearFecha(fechaInput.value), // Usamos tu función para que llegue bonito al correo
         Hora: horaSelect.value,
-        _subject: "Nueva Reserva de Pista de Pádel",
-        _replyto: emailInput.value 
+        _replyto: emailInput.value // Permite al admin responder directamente al usuario
       })
     });
 
-    // 5. Limpiar el formulario
+    // 3. Confirmar al usuario y resetear
+    alert("¡Reserva confirmada!");
     form.reset();
-    horaSelect.innerHTML = ""; 
     cargarTabla();
+    horaSelect.innerHTML = ""; // Limpiar el selector de horas
 
   } catch (error) {
-    console.error("Error:", error);
-    alert("Hubo un problema técnico al guardar la reserva.");
+    console.error("Error en el proceso de reserva:", error);
+    alert("Hubo un error al procesar tu reserva. Inténtalo de nuevo.");
   }
 }
+
+
 
 // Cargar tabla
 async function cargarTabla(){
