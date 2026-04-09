@@ -7,7 +7,6 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script type="text/javascript">
    (function(){
-      // Tu PUBLIC KEY de EmailJS
       emailjs.init("1gXtw-8vXGl4rBmgG");
    })();
 </script>
@@ -34,16 +33,16 @@ button:disabled { background: #95a5a6; }
     <img src="logo1.png" class="logo" alt="">
     <img src="logo2.jpeg" class="logo" alt="">
   </div>
-  <h1>Reservas Pista de Pádel</h1>
+  <h1>Reservas Pista de Pádel - Barlovento</h1>
 </header>
 
 <div class="container">
 <form id="reservaForm">
   <label>Nombre Completo:</label>
-  <input type="text" id="nombre" required>
+  <input type="text" id="nombre" placeholder="Ej: Juan Pérez" required>
 
   <label>Email:</label>
-  <input type="email" id="email" required>
+  <input type="email" id="email" placeholder="ejemplo@correo.com" required>
 
   <label>Fecha:</label>
   <input type="date" id="fecha" required>
@@ -58,11 +57,9 @@ button:disabled { background: #95a5a6; }
 </div>
 
 <script type="module">
-// IMPORTACIÓN DE FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-// CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: "905462199088",
   authDomain: "reserva-pista-de-padel.firebaseapp.com",
@@ -72,7 +69,26 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// HORARIOS DISPONIBLES
+// FESTIVOS 2026 (Nacionales, Canarias y Locales Barlovento)
+const festivos2026 = [
+    "2026-01-01", // Año Nuevo
+    "2026-01-06", // Epifanía del Señor
+    "2026-02-02", // Virgen de Candelaria (Tenerife/La Palma festivo insular)
+    "2026-02-16", // Lunes de Carnaval (Local Barlovento)
+    "2026-04-02", // Jueves Santo
+    "2026-04-03", // Viernes Santo
+    "2026-05-01", // Fiesta del Trabajo
+    "2026-05-30", // Día de Canarias
+    "2026-08-15", // Asunción de la Virgen
+    "2026-08-17", // Lunes tras la Fiesta del Rosario (Local Barlovento - Estimado)
+    "2026-10-12", // Fiesta Nacional de España
+    "2026-11-01", // Todos los Santos (Se traslada al lunes 02 si cae en domingo, pero en 2026 es domingo)
+    "2026-11-02", // Traslado de Todos los Santos
+    "2026-12-06", // Día de la Constitución
+    "2026-12-08", // Inmaculada Concepción
+    "2026-12-25"  // Natividad del Señor
+];
+
 const horariosSemana = {
   1: ["8:00 - 9:30", "9:30 - 11:00", "17:00 - 18:30", "18:30 - 20:00"], // Lun
   2: ["17:00 - 18:30", "18:30 - 20:00"],                               // Mar
@@ -96,15 +112,23 @@ function formatearFecha(fechaStr){
   return f.toLocaleDateString("es-ES", { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// FUNCIÓN PARA CARGAR HORARIOS DESDE FIREBASE (Sigue siendo necesaria para bloquear horas ocupadas)
 async function cargarHoras(){
   if(!fechaInput.value) return;
-  horaSelect.innerHTML = '<option value="">Comprobando disponibilidad...</option>';
   
-  const [year, month, day] = fechaInput.value.split("-");
-  const fechaSeleccionada = new Date(year, month - 1, day);
-  const diaSemana = fechaSeleccionada.getDay(); 
+  const fechaSeleccionadaStr = fechaInput.value;
+  const [year, month, day] = fechaSeleccionadaStr.split("-");
+  const fechaObj = new Date(year, month - 1, day);
+  const diaSemana = fechaObj.getDay(); 
 
+  horaSelect.innerHTML = '<option value="">Comprobando disponibilidad...</option>';
+
+  // 1. COMPROBAR SI ES FESTIVO
+  if (festivos2026.includes(fechaSeleccionadaStr)) {
+    horaSelect.innerHTML = '<option value="">Cerrado por Festivo (Barlovento)</option>';
+    return;
+  }
+
+  // 2. COMPROBAR SI ES FIN DE SEMANA
   if(!horariosSemana[diaSemana]){
     horaSelect.innerHTML = '<option value="">Cerrado (Solo Lunes a Viernes)</option>';
     return;
@@ -116,7 +140,7 @@ async function cargarHoras(){
 
     horaSelect.innerHTML = '<option value="">Selecciona una hora</option>';
     horariosSemana[diaSemana].forEach(h => {
-      const estaOcupado = ocupados.some(r => r.fecha === fechaInput.value && r.hora === h);
+      const estaOcupado = ocupados.some(r => r.fecha === fechaSeleccionadaStr && r.hora === h);
       const opt = document.createElement("option");
       opt.value = h;
       opt.textContent = estaOcupado ? h + " (RESERVADO)" : h;
@@ -129,7 +153,6 @@ async function cargarHoras(){
   }
 }
 
-// FUNCIÓN PARA GUARDAR Y ENVIAR EMAIL
 async function guardarReserva(e){
   e.preventDefault();
   const btn = document.getElementById("btnReservar");
@@ -137,7 +160,6 @@ async function guardarReserva(e){
   btn.textContent = "Procesando...";
 
   try {
-    // 1. Guardar en Firestore
     await addDoc(collection(db, "reservas"), {
       nombre: nombreInput.value,
       email: emailInput.value,
@@ -146,7 +168,6 @@ async function guardarReserva(e){
       timestamp: new Date()
     });
 
-    // 2. Enviar con EmailJS
     const SERVICE_ID = "service_ai3otnx";
     const TEMPLATE_ID = "template_zbmh83z";
 
@@ -163,7 +184,7 @@ async function guardarReserva(e){
 
   } catch (err) {
     console.error("Error crítico:", err);
-    alert("Hubo un error. Revisa la consola (F12) para más detalles.");
+    alert("Hubo un error al procesar la reserva.");
   } finally {
     btn.disabled = false;
     btn.textContent = "Confirmar Reserva";
